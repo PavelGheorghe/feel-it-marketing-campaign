@@ -1,0 +1,6 @@
+{
+  "Contacts": ["Email", "ContactList"],
+  "Suppression": ["Title"],
+  "Senders": ["Email"],
+  "CampaignSends": ["CampaignNo", "Title"]
+}

@@ -1,0 +1,441 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/sp/site-design-script-actions.schema.json",
+  "actions": [
+    {
+      "verb": "createSPList",
+      "listName": "ContactLists",
+      "templateType": 100,
+      "subactions": [
+        {
+          "verb": "setDescription",
+          "description": "Audiences (equivalent of Brevo contact lists)."
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{b1e6e4a2-f2b0-51f5-9316-978d85188d69}\" Type=\"Note\" Name=\"AudienceDescription\" StaticName=\"AudienceDescription\" DisplayName=\"AudienceDescription\" RichText=\"FALSE\" RichTextMode=\"Compatible\" NumLines=\"3\" AppendOnly=\"FALSE\" />",
+          "addToDefaultView": false
+        },
+        {
+          "verb": "addSPFieldXml",
+          "addToDefaultView": true,
+          "schemaXml": "<Field ID=\"{61d38ae8-7b08-5f73-8243-c3646b16cc97}\" Type=\"User\" Name=\"ListOwner\" StaticName=\"ListOwner\" DisplayName=\"ListOwner\" UserSelectionMode=\"PeopleOnly\" Required=\"FALSE\" />"
+        },
+        {
+          "verb": "addSPView",
+          "name": "All Items",
+          "viewFields": [
+            "LinkTitle",
+            "ListOwner"
+          ],
+          "query": "",
+          "rowLimit": 100,
+          "isPaged": true,
+          "makeDefault": true
+        }
+      ]
+    },
+    {
+      "verb": "createSPList",
+      "listName": "Contacts",
+      "templateType": 100,
+      "subactions": [
+        {
+          "verb": "setDescription",
+          "description": "One row per contact per audience. Title = full name."
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{03ea21a2-a3e2-59e5-8775-c4cd3f3c25fe}\" Type=\"Text\" Name=\"Email\" StaticName=\"Email\" DisplayName=\"Email\" MaxLength=\"255\" Required=\"TRUE\" Indexed=\"TRUE\" />",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{14675d7c-9fe0-5a25-b8a1-b59f98ca7404}\" Type=\"Text\" Name=\"FirstName\" StaticName=\"FirstName\" DisplayName=\"FirstName\" MaxLength=\"255\" Required=\"FALSE\" Indexed=\"FALSE\" />",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{b9fcce72-5ce7-548c-93d7-fc5e87fc8ff3}\" Type=\"Text\" Name=\"LastName\" StaticName=\"LastName\" DisplayName=\"LastName\" MaxLength=\"255\" Required=\"FALSE\" Indexed=\"FALSE\" />",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{4bcf465c-8549-5fd7-8ed3-85f5836483ec}\" Type=\"Text\" Name=\"Company\" StaticName=\"Company\" DisplayName=\"Company\" MaxLength=\"255\" Required=\"FALSE\" Indexed=\"FALSE\" />",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{a4e02ce5-d5cf-5af2-959a-4cc79a12265b}\" Type=\"Text\" Name=\"JobTitle\" StaticName=\"JobTitle\" DisplayName=\"JobTitle\" MaxLength=\"255\" Required=\"FALSE\" Indexed=\"FALSE\" />",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{3ae8f1c9-1c4a-51f6-ad68-11fdd8e74f94}\" Type=\"Text\" Name=\"Country\" StaticName=\"Country\" DisplayName=\"Country\" MaxLength=\"255\" Required=\"FALSE\" Indexed=\"FALSE\" />",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{044c54ab-fb71-5ed5-ab72-8f01e475db1d}\" Type=\"Text\" Name=\"Phone\" StaticName=\"Phone\" DisplayName=\"Phone\" MaxLength=\"255\" Required=\"FALSE\" Indexed=\"FALSE\" />",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{751bb784-4bad-5c8f-8d53-55cb854cc6a3}\" Type=\"Choice\" Name=\"Language\" StaticName=\"Language\" DisplayName=\"Language\" Format=\"Dropdown\" FillInChoice=\"FALSE\"><Default>DE</Default><CHOICES><CHOICE>DE</CHOICE><CHOICE>EN</CHOICE><CHOICE>FR</CHOICE><CHOICE>RO</CHOICE></CHOICES></Field>",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPLookupFieldXml",
+          "targetListName": "ContactLists",
+          "addToDefaultView": true,
+          "schemaXml": "<Field ID=\"{333d99ac-db0a-522e-8620-d5b3c0e466b7}\" Type=\"Lookup\" Name=\"ContactList\" StaticName=\"ContactList\" DisplayName=\"ContactList\" ShowField=\"Title\" Required=\"FALSE\" Indexed=\"TRUE\" />"
+        },
+        {
+          "verb": "addSPView",
+          "name": "All Items",
+          "viewFields": [
+            "LinkTitle",
+            "Email",
+            "FirstName",
+            "LastName",
+            "Company",
+            "JobTitle",
+            "Country",
+            "Language",
+            "ContactList"
+          ],
+          "query": "",
+          "rowLimit": 100,
+          "isPaged": true,
+          "makeDefault": true
+        }
+      ]
+    },
+    {
+      "verb": "createSPList",
+      "listName": "Suppression",
+      "templateType": 100,
+      "subactions": [
+        {
+          "verb": "setDescription",
+          "description": "Global do-not-send list. Title = email address (lower case)."
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{03ca8067-a4e0-588d-8843-83f6cda8dde8}\" Type=\"Choice\" Name=\"Reason\" StaticName=\"Reason\" DisplayName=\"Reason\" Format=\"Dropdown\" FillInChoice=\"FALSE\"><Default>Unsubscribed</Default><CHOICES><CHOICE>Unsubscribed</CHOICE><CHOICE>Bounced</CHOICE><CHOICE>Blocklisted</CHOICE><CHOICE>Manual</CHOICE></CHOICES></Field>",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{f02055a9-088a-5800-ba63-899b2e9b9b3d}\" Type=\"DateTime\" Name=\"SuppressedAt\" StaticName=\"SuppressedAt\" DisplayName=\"SuppressedAt\" Format=\"DateTime\" />",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{9e50271e-e429-5c0e-a035-2d1106bb3cc9}\" Type=\"Number\" Name=\"SourceCampaignNo\" StaticName=\"SourceCampaignNo\" DisplayName=\"SourceCampaignNo\" Decimals=\"0\" Indexed=\"FALSE\"></Field>",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPView",
+          "name": "All Items",
+          "viewFields": [
+            "LinkTitle",
+            "Reason",
+            "SuppressedAt",
+            "SourceCampaignNo"
+          ],
+          "query": "",
+          "rowLimit": 100,
+          "isPaged": true,
+          "makeDefault": true
+        }
+      ]
+    },
+    {
+      "verb": "createSPList",
+      "listName": "EmailTemplates",
+      "templateType": 100,
+      "subactions": [
+        {
+          "verb": "setDescription",
+          "description": "HTML email templates. HtmlBody is plain-text multi-line so raw HTML is preserved."
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{7887dab2-927c-5e58-bceb-81e3f6580839}\" Type=\"Text\" Name=\"Subject\" StaticName=\"Subject\" DisplayName=\"Subject\" MaxLength=\"255\" Required=\"TRUE\" Indexed=\"FALSE\" />",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{9fde3c51-b31d-517c-a267-6e7446e63627}\" Type=\"Note\" Name=\"HtmlBody\" StaticName=\"HtmlBody\" DisplayName=\"HtmlBody\" RichText=\"FALSE\" RichTextMode=\"Compatible\" NumLines=\"20\" AppendOnly=\"FALSE\" />",
+          "addToDefaultView": false
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{85ec8d85-67b9-5c9c-88e9-17eec81ba0ad}\" Type=\"Choice\" Name=\"Language\" StaticName=\"Language\" DisplayName=\"Language\" Format=\"Dropdown\" FillInChoice=\"FALSE\"><Default>DE</Default><CHOICES><CHOICE>DE</CHOICE><CHOICE>EN</CHOICE><CHOICE>FR</CHOICE><CHOICE>RO</CHOICE></CHOICES></Field>",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{a214a54d-3412-57fa-bd3c-d0a19f3ddd02}\" Type=\"Boolean\" Name=\"Active\" StaticName=\"Active\" DisplayName=\"Active\"><Default>1</Default></Field>",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{e07fe3d4-ad61-5b1b-adc5-7e0eedb26ed9}\" Type=\"Note\" Name=\"Notes\" StaticName=\"Notes\" DisplayName=\"Notes\" RichText=\"FALSE\" RichTextMode=\"Compatible\" NumLines=\"3\" AppendOnly=\"FALSE\" />",
+          "addToDefaultView": false
+        },
+        {
+          "verb": "addSPView",
+          "name": "All Items",
+          "viewFields": [
+            "LinkTitle",
+            "Subject",
+            "Language",
+            "Active",
+            "Modified",
+            "Editor"
+          ],
+          "query": "",
+          "rowLimit": 100,
+          "isPaged": true,
+          "makeDefault": true
+        }
+      ]
+    },
+    {
+      "verb": "createSPList",
+      "listName": "Senders",
+      "templateType": 100,
+      "subactions": [
+        {
+          "verb": "setDescription",
+          "description": "One row per colleague who sends campaigns. Title = display name."
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{c27c6b12-a0e1-520e-b5bb-3a67eda13987}\" Type=\"Text\" Name=\"Email\" StaticName=\"Email\" DisplayName=\"Email\" MaxLength=\"255\" Required=\"TRUE\" Indexed=\"TRUE\" />",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{b93e7ab5-5cc1-5824-986f-f62168a277c9}\" Type=\"Note\" Name=\"SignatureHtml\" StaticName=\"SignatureHtml\" DisplayName=\"SignatureHtml\" RichText=\"FALSE\" RichTextMode=\"Compatible\" NumLines=\"10\" AppendOnly=\"FALSE\" />",
+          "addToDefaultView": false
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{ec9b05b8-2b91-5200-971b-9fecef51080b}\" Type=\"Number\" Name=\"DailyLimit\" StaticName=\"DailyLimit\" DisplayName=\"DailyLimit\" Decimals=\"0\" Indexed=\"FALSE\"><Default>300</Default></Field>",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPView",
+          "name": "All Items",
+          "viewFields": [
+            "LinkTitle",
+            "Email",
+            "DailyLimit"
+          ],
+          "query": "",
+          "rowLimit": 100,
+          "isPaged": true,
+          "makeDefault": true
+        }
+      ]
+    },
+    {
+      "verb": "createSPList",
+      "listName": "Campaigns",
+      "templateType": 100,
+      "subactions": [
+        {
+          "verb": "setDescription",
+          "description": "One row per campaign. Run the 'Marketing campaign' flow with the ID of the row."
+        },
+        {
+          "verb": "addSPLookupFieldXml",
+          "targetListName": "EmailTemplates",
+          "addToDefaultView": true,
+          "schemaXml": "<Field ID=\"{9ad6d971-18e7-5c10-923a-cfc7e25c4c72}\" Type=\"Lookup\" Name=\"Template\" StaticName=\"Template\" DisplayName=\"Template\" ShowField=\"Title\" Required=\"FALSE\" Indexed=\"TRUE\" />"
+        },
+        {
+          "verb": "addSPLookupFieldXml",
+          "targetListName": "ContactLists",
+          "addToDefaultView": true,
+          "schemaXml": "<Field ID=\"{c7501245-3495-51f5-8798-47fd3739ab8b}\" Type=\"Lookup\" Name=\"ContactList\" StaticName=\"ContactList\" DisplayName=\"ContactList\" ShowField=\"Title\" Required=\"FALSE\" Indexed=\"TRUE\" />"
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{2863d5d2-9096-571a-a3bc-4b59f3c53956}\" Type=\"Choice\" Name=\"CampaignType\" StaticName=\"CampaignType\" DisplayName=\"CampaignType\" Format=\"Dropdown\" FillInChoice=\"FALSE\"><Default>New</Default><CHOICES><CHOICE>New</CHOICE><CHOICE>Follow-up non-repliers</CHOICE></CHOICES></Field>",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{241b0463-109c-56fa-8609-e5803bc2a1ad}\" Type=\"Number\" Name=\"ParentCampaignNo\" StaticName=\"ParentCampaignNo\" DisplayName=\"ParentCampaignNo\" Decimals=\"0\" Indexed=\"FALSE\"></Field>",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{c2807a6b-b897-5e4b-b5c6-1a4be71290ae}\" Type=\"Choice\" Name=\"Status\" StaticName=\"Status\" DisplayName=\"Status\" Format=\"Dropdown\" FillInChoice=\"FALSE\"><Default>Draft</Default><CHOICES><CHOICE>Draft</CHOICE><CHOICE>Testing</CHOICE><CHOICE>Sending</CHOICE><CHOICE>Paused</CHOICE><CHOICE>Completed</CHOICE><CHOICE>Failed</CHOICE></CHOICES></Field>",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{769a3a4a-9169-5a80-9e26-aa7a74e6fb05}\" Type=\"Number\" Name=\"BatchSize\" StaticName=\"BatchSize\" DisplayName=\"BatchSize\" Decimals=\"0\" Indexed=\"FALSE\"><Default>200</Default></Field>",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{2185fcb3-0c4f-5111-8fd4-52d0ffdcdd51}\" Type=\"Number\" Name=\"DelaySeconds\" StaticName=\"DelaySeconds\" DisplayName=\"DelaySeconds\" Decimals=\"0\" Indexed=\"FALSE\"><Default>5</Default></Field>",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{af0727c5-6eaa-5bde-944c-6a932244b4fb}\" Type=\"Text\" Name=\"TestEmail\" StaticName=\"TestEmail\" DisplayName=\"TestEmail\" MaxLength=\"255\" Required=\"FALSE\" Indexed=\"FALSE\" />",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{fac03466-5f01-560d-8c84-5ba122359101}\" Type=\"Number\" Name=\"SentCount\" StaticName=\"SentCount\" DisplayName=\"SentCount\" Decimals=\"0\" Indexed=\"FALSE\"><Default>0</Default></Field>",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{ad7257da-912a-540c-a4dc-d8f6358a2564}\" Type=\"Number\" Name=\"FailedCount\" StaticName=\"FailedCount\" DisplayName=\"FailedCount\" Decimals=\"0\" Indexed=\"FALSE\"><Default>0</Default></Field>",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{850f7f12-7857-5061-8eb9-cb8951a1befa}\" Type=\"Number\" Name=\"SkippedCount\" StaticName=\"SkippedCount\" DisplayName=\"SkippedCount\" Decimals=\"0\" Indexed=\"FALSE\"><Default>0</Default></Field>",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{1367f868-6444-5ae1-8b49-27337d747eec}\" Type=\"DateTime\" Name=\"StartedAt\" StaticName=\"StartedAt\" DisplayName=\"StartedAt\" Format=\"DateTime\" />",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{d505d789-20c6-5454-9229-8426ae1ad3e0}\" Type=\"DateTime\" Name=\"CompletedAt\" StaticName=\"CompletedAt\" DisplayName=\"CompletedAt\" Format=\"DateTime\" />",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{4fc97d88-5214-5b21-8b84-06fdbbd5746e}\" Type=\"Text\" Name=\"SentBy\" StaticName=\"SentBy\" DisplayName=\"SentBy\" MaxLength=\"255\" Required=\"FALSE\" Indexed=\"FALSE\" />",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{787db08b-5958-5fe3-90fc-52307d382598}\" Type=\"Note\" Name=\"LastRunMessage\" StaticName=\"LastRunMessage\" DisplayName=\"LastRunMessage\" RichText=\"FALSE\" RichTextMode=\"Compatible\" NumLines=\"3\" AppendOnly=\"FALSE\" />",
+          "addToDefaultView": false
+        },
+        {
+          "verb": "addSPView",
+          "name": "All Items",
+          "viewFields": [
+            "ID",
+            "LinkTitle",
+            "Status",
+            "CampaignType",
+            "Template",
+            "ContactList",
+            "ParentCampaignNo",
+            "BatchSize",
+            "SentCount",
+            "FailedCount",
+            "SkippedCount",
+            "SentBy",
+            "StartedAt",
+            "CompletedAt"
+          ],
+          "query": "<OrderBy><FieldRef Name=\"ID\" Ascending=\"FALSE\" /></OrderBy>",
+          "rowLimit": 100,
+          "isPaged": true,
+          "makeDefault": true
+        }
+      ]
+    },
+    {
+      "verb": "createSPList",
+      "listName": "CampaignSends",
+      "templateType": 100,
+      "subactions": [
+        {
+          "verb": "setDescription",
+          "description": "Send log. Title = recipient email. Used for resume, follow-ups and reporting."
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{72f61478-04db-555b-9333-8e55575396e4}\" Type=\"Number\" Name=\"CampaignNo\" StaticName=\"CampaignNo\" DisplayName=\"CampaignNo\" Decimals=\"0\" Indexed=\"TRUE\"></Field>",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{50c29271-472f-5a92-8441-1062a5577e52}\" Type=\"Text\" Name=\"ContactName\" StaticName=\"ContactName\" DisplayName=\"ContactName\" MaxLength=\"255\" Required=\"FALSE\" Indexed=\"FALSE\" />",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{bf5dc89d-2088-5441-ae2a-b620ca72b03f}\" Type=\"Text\" Name=\"Company\" StaticName=\"Company\" DisplayName=\"Company\" MaxLength=\"255\" Required=\"FALSE\" Indexed=\"FALSE\" />",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{324a778a-f853-50d0-a348-466c0f2fd3c1}\" Type=\"Choice\" Name=\"SendStatus\" StaticName=\"SendStatus\" DisplayName=\"SendStatus\" Format=\"Dropdown\" FillInChoice=\"FALSE\"><Default>Sent</Default><CHOICES><CHOICE>Sent</CHOICE><CHOICE>Failed</CHOICE><CHOICE>Skipped</CHOICE></CHOICES></Field>",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{5830c8ee-8034-5898-9a4c-d0d0f05e73c5}\" Type=\"DateTime\" Name=\"SentAt\" StaticName=\"SentAt\" DisplayName=\"SentAt\" Format=\"DateTime\" />",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{cd10bd6f-7839-5695-84aa-db130c1ccb2b}\" Type=\"Note\" Name=\"Error\" StaticName=\"Error\" DisplayName=\"Error\" RichText=\"FALSE\" RichTextMode=\"Compatible\" NumLines=\"3\" AppendOnly=\"FALSE\" />",
+          "addToDefaultView": false
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{5ae3dffa-79b0-5a2d-8513-f56a30068e8f}\" Type=\"Text\" Name=\"SentBy\" StaticName=\"SentBy\" DisplayName=\"SentBy\" MaxLength=\"255\" Required=\"FALSE\" Indexed=\"FALSE\" />",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{be7f5722-90d1-55a9-b99c-3e7d58c3eb69}\" Type=\"Boolean\" Name=\"Replied\" StaticName=\"Replied\" DisplayName=\"Replied\"><Default>0</Default></Field>",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{dd2711c8-5a79-5154-b0c8-ee1c64cd94fb}\" Type=\"DateTime\" Name=\"RepliedAt\" StaticName=\"RepliedAt\" DisplayName=\"RepliedAt\" Format=\"DateTime\" />",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPFieldXml",
+          "schemaXml": "<Field ID=\"{79b9eafc-21a7-55a8-9c91-67f2f08e428a}\" Type=\"Boolean\" Name=\"Unsubscribed\" StaticName=\"Unsubscribed\" DisplayName=\"Unsubscribed\"><Default>0</Default></Field>",
+          "addToDefaultView": true
+        },
+        {
+          "verb": "addSPView",
+          "name": "All Items",
+          "viewFields": [
+            "ID",
+            "LinkTitle",
+            "CampaignNo",
+            "ContactName",
+            "Company",
+            "SendStatus",
+            "SentAt",
+            "SentBy",
+            "Replied",
+            "RepliedAt",
+            "Unsubscribed"
+          ],
+          "query": "",
+          "rowLimit": 100,
+          "isPaged": true,
+          "makeDefault": true
+        }
+      ]
+    }
+  ],
+  "bindata": {},
+  "version": 1
+}

@@ -1,0 +1,333 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "$connections": {
+      "defaultValue": {},
+      "type": "Object"
+    },
+    "$authentication": {
+      "defaultValue": {},
+      "type": "SecureObject"
+    }
+  },
+  "triggers": {
+    "manual": {
+      "type": "Request",
+      "kind": "Button",
+      "inputs": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "number": {
+              "title": "Campaign ID",
+              "type": "number",
+              "x-ms-dynamically-added": true,
+              "description": "The ID column of the row in the Campaigns list",
+              "x-ms-content-hint": "NUMBER"
+            }
+          },
+          "required": [
+            "number"
+          ]
+        }
+      }
+    }
+  },
+  "actions": {
+    "Get_campaign": {
+      "type": "OpenApiConnection",
+      "inputs": {
+        "host": {
+          "connectionName": "shared_sharepointonline",
+          "operationId": "GetItem",
+          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+        },
+        "parameters": {
+          "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+          "table": "Campaigns",
+          "id": "@triggerBody()?['number']"
+        },
+        "authentication": "@parameters('$authentication')"
+      },
+      "runAfter": {}
+    },
+    "Init_replies": {
+      "type": "InitializeVariable",
+      "inputs": {
+        "variables": [
+          {
+            "name": "Replies",
+            "type": "integer",
+            "value": 0
+          }
+        ]
+      },
+      "runAfter": {
+        "Get_campaign": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Init_unsubscribes": {
+      "type": "InitializeVariable",
+      "inputs": {
+        "variables": [
+          {
+            "name": "Unsubscribes",
+            "type": "integer",
+            "value": 0
+          }
+        ]
+      },
+      "runAfter": {
+        "Init_replies": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Get_sends": {
+      "type": "OpenApiConnection",
+      "inputs": {
+        "host": {
+          "connectionName": "shared_sharepointonline",
+          "operationId": "GetItems",
+          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+        },
+        "parameters": {
+          "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+          "table": "CampaignSends",
+          "$filter": "CampaignNo eq @{triggerBody()?['number']}",
+          "$top": 5000
+        },
+        "authentication": "@parameters('$authentication')"
+      },
+      "runAfter": {
+        "Init_unsubscribes": [
+          "Succeeded"
+        ]
+      },
+      "runtimeConfiguration": {
+        "paginationPolicy": {
+          "minimumItemCount": 5000
+        }
+      }
+    },
+    "Filter_my_open_sends": {
+      "type": "Query",
+      "inputs": {
+        "from": "@body('Get_sends')?['value']",
+        "where": "@and(equals(item()?['SendStatus']?['Value'], 'Sent'), not(equals(item()?['Replied'], true)), equals(toLower(coalesce(item()?['SentBy'], '')), toLower(triggerOutputs()?['headers']?['x-ms-user-email'])))"
+      },
+      "runAfter": {
+        "Get_sends": [
+          "Succeeded"
+        ]
+      }
+    },
+    "For_each_open_send": {
+      "type": "Foreach",
+      "foreach": "@body('Filter_my_open_sends')",
+      "runtimeConfiguration": {
+        "concurrency": {
+          "repetitions": 4
+        }
+      },
+      "runAfter": {
+        "Filter_my_open_sends": [
+          "Succeeded"
+        ]
+      },
+      "actions": {
+        "Get_emails_from_recipient": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "connectionName": "shared_office365",
+              "operationId": "GetEmailsV3",
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365"
+            },
+            "parameters": {
+              "folderPath": "Inbox",
+              "from": "@items('For_each_open_send')?['Title']",
+              "fetchOnlyUnread": false,
+              "includeAttachments": false,
+              "importance": "Any",
+              "top": 10
+            },
+            "authentication": "@parameters('$authentication')"
+          },
+          "runAfter": {}
+        },
+        "Filter_replies_after_send": {
+          "type": "Query",
+          "inputs": {
+            "from": "@body('Get_emails_from_recipient')?['value']",
+            "where": "@greater(ticks(item()?['receivedDateTime']), ticks(items('For_each_open_send')?['SentAt']))"
+          },
+          "runAfter": {
+            "Get_emails_from_recipient": [
+              "Succeeded"
+            ]
+          }
+        },
+        "If_replied": {
+          "type": "If",
+          "expression": {
+            "and": [
+              {
+                "greater": [
+                  "@length(body('Filter_replies_after_send'))",
+                  0
+                ]
+              }
+            ]
+          },
+          "actions": {
+            "Select_reply_text": {
+              "type": "Select",
+              "inputs": {
+                "from": "@body('Filter_replies_after_send')",
+                "select": "@concat(coalesce(item()?['subject'], ''), ' ', coalesce(item()?['bodyPreview'], ''))"
+              }
+            },
+            "Is_unsubscribe": {
+              "type": "Compose",
+              "inputs": "@or(contains(toLower(string(body('Select_reply_text'))), 'unsubscribe'), contains(toLower(string(body('Select_reply_text'))), 'abmelden'), contains(toLower(string(body('Select_reply_text'))), 'austragen'), contains(toLower(string(body('Select_reply_text'))), 'dezabonare'), contains(toLower(string(body('Select_reply_text'))), 'dezabonez'), contains(toLower(string(body('Select_reply_text'))), 'desinscri'), contains(toLower(string(body('Select_reply_text'))), 'désinscri'), contains(toLower(string(body('Select_reply_text'))), 'remove me'))",
+              "runAfter": {
+                "Select_reply_text": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Mark_replied": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "host": {
+                  "connectionName": "shared_sharepointonline",
+                  "operationId": "PatchItem",
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+                },
+                "parameters": {
+                  "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+                  "table": "CampaignSends",
+                  "id": "@items('For_each_open_send')?['ID']",
+                  "item/Title": "@items('For_each_open_send')?['Title']",
+                  "item/Replied": true,
+                  "item/RepliedAt": "@first(body('Filter_replies_after_send'))?['receivedDateTime']",
+                  "item/Unsubscribed": "@outputs('Is_unsubscribe')"
+                },
+                "authentication": "@parameters('$authentication')"
+              },
+              "runAfter": {
+                "Is_unsubscribe": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Increment_replies": {
+              "type": "IncrementVariable",
+              "inputs": {
+                "name": "Replies",
+                "value": 1
+              },
+              "runAfter": {
+                "Mark_replied": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "If_unsubscribe": {
+              "type": "If",
+              "expression": {
+                "and": [
+                  {
+                    "equals": [
+                      "@outputs('Is_unsubscribe')",
+                      true
+                    ]
+                  }
+                ]
+              },
+              "actions": {
+                "Add_to_suppression": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "connectionName": "shared_sharepointonline",
+                      "operationId": "PostItem",
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+                    },
+                    "parameters": {
+                      "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+                      "table": "Suppression",
+                      "item/Title": "@toLower(items('For_each_open_send')?['Title'])",
+                      "item/Reason/Value": "Unsubscribed",
+                      "item/SuppressedAt": "@utcNow()",
+                      "item/SourceCampaignNo": "@triggerBody()?['number']"
+                    },
+                    "authentication": "@parameters('$authentication')"
+                  },
+                  "runAfter": {}
+                },
+                "Increment_unsubscribes": {
+                  "type": "IncrementVariable",
+                  "inputs": {
+                    "name": "Unsubscribes",
+                    "value": 1
+                  },
+                  "runAfter": {
+                    "Add_to_suppression": [
+                      "Succeeded"
+                    ]
+                  }
+                }
+              },
+              "runAfter": {
+                "Increment_replies": [
+                  "Succeeded"
+                ]
+              },
+              "else": {
+                "actions": {}
+              }
+            }
+          },
+          "runAfter": {
+            "Filter_replies_after_send": [
+              "Succeeded"
+            ]
+          },
+          "else": {
+            "actions": {}
+          }
+        }
+      }
+    },
+    "Update_campaign_message": {
+      "type": "OpenApiConnection",
+      "inputs": {
+        "host": {
+          "connectionName": "shared_sharepointonline",
+          "operationId": "PatchItem",
+          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+        },
+        "parameters": {
+          "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+          "table": "Campaigns",
+          "id": "@triggerBody()?['number']",
+          "item/Title": "@body('Get_campaign')?['Title']",
+          "item/LastRunMessage": "@{utcNow()} | reply sync by @{triggerOutputs()?['headers']?['x-ms-user-email']}: @{variables('Replies')} new replies, @{variables('Unsubscribes')} unsubscribes"
+        },
+        "authentication": "@parameters('$authentication')"
+      },
+      "runAfter": {
+        "For_each_open_send": [
+          "Succeeded",
+          "Failed"
+        ]
+      }
+    }
+  },
+  "outputs": {}
+}

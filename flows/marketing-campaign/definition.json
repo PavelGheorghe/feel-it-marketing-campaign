@@ -1,0 +1,1008 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "$connections": {
+      "defaultValue": {},
+      "type": "Object"
+    },
+    "$authentication": {
+      "defaultValue": {},
+      "type": "SecureObject"
+    }
+  },
+  "triggers": {
+    "manual": {
+      "type": "Request",
+      "kind": "Button",
+      "inputs": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "number": {
+              "title": "Campaign ID",
+              "type": "number",
+              "x-ms-dynamically-added": true,
+              "description": "The ID column of the row in the Campaigns list",
+              "x-ms-content-hint": "NUMBER"
+            },
+            "text": {
+              "title": "Mode",
+              "type": "string",
+              "x-ms-dynamically-added": true,
+              "enum": [
+                "Test",
+                "Send"
+              ],
+              "description": "Test = one email to TestEmail (or you). Send = send the next batch.",
+              "x-ms-content-hint": "TEXT"
+            },
+            "number_1": {
+              "title": "Max emails this run",
+              "type": "number",
+              "x-ms-dynamically-added": true,
+              "description": "Optional. Leave empty to use BatchSize from the campaign.",
+              "x-ms-content-hint": "NUMBER"
+            }
+          },
+          "required": [
+            "number",
+            "text"
+          ]
+        }
+      }
+    }
+  },
+  "actions": {
+    "Get_campaign": {
+      "type": "OpenApiConnection",
+      "inputs": {
+        "host": {
+          "connectionName": "shared_sharepointonline",
+          "operationId": "GetItem",
+          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+        },
+        "parameters": {
+          "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+          "table": "Campaigns",
+          "id": "@triggerBody()?['number']"
+        },
+        "authentication": "@parameters('$authentication')"
+      },
+      "runAfter": {}
+    },
+    "Init_i": {
+      "type": "InitializeVariable",
+      "inputs": {
+        "variables": [
+          {
+            "name": "i",
+            "type": "integer",
+            "value": 0
+          }
+        ]
+      },
+      "runAfter": {
+        "Get_campaign": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Init_sent": {
+      "type": "InitializeVariable",
+      "inputs": {
+        "variables": [
+          {
+            "name": "Sent",
+            "type": "integer",
+            "value": 0
+          }
+        ]
+      },
+      "runAfter": {
+        "Init_i": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Init_failed": {
+      "type": "InitializeVariable",
+      "inputs": {
+        "variables": [
+          {
+            "name": "Failed",
+            "type": "integer",
+            "value": 0
+          }
+        ]
+      },
+      "runAfter": {
+        "Init_sent": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Init_paused": {
+      "type": "InitializeVariable",
+      "inputs": {
+        "variables": [
+          {
+            "name": "Paused",
+            "type": "boolean",
+            "value": false
+          }
+        ]
+      },
+      "runAfter": {
+        "Init_failed": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Init_is_follow_up": {
+      "type": "InitializeVariable",
+      "inputs": {
+        "variables": [
+          {
+            "name": "IsFollowUp",
+            "type": "boolean",
+            "value": "@equals(body('Get_campaign')?['CampaignType']?['Value'], 'Follow-up non-repliers')"
+          }
+        ]
+      },
+      "runAfter": {
+        "Init_paused": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Init_follow_up_emails": {
+      "type": "InitializeVariable",
+      "inputs": {
+        "variables": [
+          {
+            "name": "FollowUpEmails",
+            "type": "array",
+            "value": []
+          }
+        ]
+      },
+      "runAfter": {
+        "Init_is_follow_up": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Check_campaign_setup": {
+      "type": "If",
+      "expression": {
+        "or": [
+          {
+            "equals": [
+              "@empty(body('Get_campaign')?['Template'])",
+              true
+            ]
+          },
+          {
+            "equals": [
+              "@empty(body('Get_campaign')?['ContactList'])",
+              true
+            ]
+          },
+          {
+            "and": [
+              {
+                "equals": [
+                  "@variables('IsFollowUp')",
+                  true
+                ]
+              },
+              {
+                "equals": [
+                  "@empty(body('Get_campaign')?['ParentCampaignNo'])",
+                  true
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "actions": {
+        "Stop_missing_setup": {
+          "type": "Terminate",
+          "inputs": {
+            "runStatus": "Failed",
+            "runError": {
+              "code": "CampaignNotConfigured",
+              "message": "The campaign needs a Template and a ContactList (and a ParentCampaignNo for follow-ups)."
+            }
+          },
+          "runAfter": {}
+        }
+      },
+      "runAfter": {
+        "Init_follow_up_emails": [
+          "Succeeded"
+        ]
+      },
+      "else": {
+        "actions": {}
+      }
+    },
+    "Get_template": {
+      "type": "OpenApiConnection",
+      "inputs": {
+        "host": {
+          "connectionName": "shared_sharepointonline",
+          "operationId": "GetItem",
+          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+        },
+        "parameters": {
+          "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+          "table": "EmailTemplates",
+          "id": "@body('Get_campaign')?['Template']?['Id']"
+        },
+        "authentication": "@parameters('$authentication')"
+      },
+      "runAfter": {
+        "Check_campaign_setup": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Get_sender": {
+      "type": "OpenApiConnection",
+      "inputs": {
+        "host": {
+          "connectionName": "shared_sharepointonline",
+          "operationId": "GetItems",
+          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+        },
+        "parameters": {
+          "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+          "table": "Senders",
+          "$filter": "Email eq '@{triggerOutputs()?['headers']?['x-ms-user-email']}'",
+          "$top": 1
+        },
+        "authentication": "@parameters('$authentication')"
+      },
+      "runAfter": {
+        "Get_template": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Base_html": {
+      "type": "Compose",
+      "inputs": "@replace(replace(coalesce(body('Get_template')?['HtmlBody'], ''), '{{Signature}}', coalesce(first(body('Get_sender')?['value'])?['SignatureHtml'], '')), '{{SenderName}}', coalesce(first(body('Get_sender')?['value'])?['Title'], triggerOutputs()?['headers']?['x-ms-user-name'], ''))",
+      "runAfter": {
+        "Get_sender": [
+          "Succeeded"
+        ]
+      }
+    },
+    "Check_template_active": {
+      "type": "If",
+      "expression": {
+        "and": [
+          {
+            "equals": [
+              "@body('Get_template')?['Active']",
+              false
+            ]
+          }
+        ]
+      },
+      "actions": {
+        "Stop_inactive_template": {
+          "type": "Terminate",
+          "inputs": {
+            "runStatus": "Failed",
+            "runError": {
+              "code": "TemplateInactive",
+              "message": "The selected template is not Active."
+            }
+          },
+          "runAfter": {}
+        }
+      },
+      "runAfter": {
+        "Base_html": [
+          "Succeeded"
+        ]
+      },
+      "else": {
+        "actions": {}
+      }
+    },
+    "If_test_mode": {
+      "type": "If",
+      "expression": {
+        "and": [
+          {
+            "equals": [
+              "@triggerBody()?['text']",
+              "Test"
+            ]
+          }
+        ]
+      },
+      "actions": {
+        "Get_sample_contact": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "connectionName": "shared_sharepointonline",
+              "operationId": "GetItems",
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+            },
+            "parameters": {
+              "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+              "table": "Contacts",
+              "$filter": "ContactListId eq @{body('Get_campaign')?['ContactList']?['Id']}",
+              "$top": 1
+            },
+            "authentication": "@parameters('$authentication')"
+          },
+          "runAfter": {}
+        },
+        "Sample_contact": {
+          "type": "Compose",
+          "inputs": "@coalesce(first(body('Get_sample_contact')?['value']), json('{\"FirstName\":\"Max\",\"LastName\":\"Mustermann\",\"Company\":\"Muster GmbH\",\"JobTitle\":\"CIO\",\"Email\":\"max@example.com\"}'))",
+          "runAfter": {
+            "Get_sample_contact": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Send_test_email": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "connectionName": "shared_office365",
+              "operationId": "SendEmailV2",
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365"
+            },
+            "parameters": {
+              "emailMessage/To": "@coalesce(body('Get_campaign')?['TestEmail'], triggerOutputs()?['headers']?['x-ms-user-email'])",
+              "emailMessage/Subject": "@{concat('[TEST] ', replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(coalesce(body('Get_template')?['Subject'], ''), '{{FirstName}}', coalesce(outputs('Sample_contact')?['FirstName'], '')), '{{ contact.FIRSTNAME }}', coalesce(outputs('Sample_contact')?['FirstName'], '')), '{{contact.FIRSTNAME}}', coalesce(outputs('Sample_contact')?['FirstName'], '')), '{{LastName}}', coalesce(outputs('Sample_contact')?['LastName'], '')), '{{ contact.LASTNAME }}', coalesce(outputs('Sample_contact')?['LastName'], '')), '{{contact.LASTNAME}}', coalesce(outputs('Sample_contact')?['LastName'], '')), '{{Company}}', coalesce(outputs('Sample_contact')?['Company'], '')), '{{ contact.COMPANY_NAME }}', coalesce(outputs('Sample_contact')?['Company'], '')), '{{contact.COMPANY_NAME}}', coalesce(outputs('Sample_contact')?['Company'], '')), '{{ contact.COMPANY }}', coalesce(outputs('Sample_contact')?['Company'], '')), '{{contact.COMPANY}}', coalesce(outputs('Sample_contact')?['Company'], '')), '{{JobTitle}}', coalesce(outputs('Sample_contact')?['JobTitle'], '')), '{{ contact.JOB_TITLE }}', coalesce(outputs('Sample_contact')?['JobTitle'], '')), '{{contact.JOB_TITLE}}', coalesce(outputs('Sample_contact')?['JobTitle'], '')), '{{Email}}', coalesce(outputs('Sample_contact')?['Email'], '')), '{{ contact.EMAIL }}', coalesce(outputs('Sample_contact')?['Email'], '')), '{{contact.EMAIL}}', coalesce(outputs('Sample_contact')?['Email'], '')))}",
+              "emailMessage/Body": "@replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(coalesce(outputs('Base_html'), ''), '{{FirstName}}', coalesce(outputs('Sample_contact')?['FirstName'], '')), '{{ contact.FIRSTNAME }}', coalesce(outputs('Sample_contact')?['FirstName'], '')), '{{contact.FIRSTNAME}}', coalesce(outputs('Sample_contact')?['FirstName'], '')), '{{LastName}}', coalesce(outputs('Sample_contact')?['LastName'], '')), '{{ contact.LASTNAME }}', coalesce(outputs('Sample_contact')?['LastName'], '')), '{{contact.LASTNAME}}', coalesce(outputs('Sample_contact')?['LastName'], '')), '{{Company}}', coalesce(outputs('Sample_contact')?['Company'], '')), '{{ contact.COMPANY_NAME }}', coalesce(outputs('Sample_contact')?['Company'], '')), '{{contact.COMPANY_NAME}}', coalesce(outputs('Sample_contact')?['Company'], '')), '{{ contact.COMPANY }}', coalesce(outputs('Sample_contact')?['Company'], '')), '{{contact.COMPANY}}', coalesce(outputs('Sample_contact')?['Company'], '')), '{{JobTitle}}', coalesce(outputs('Sample_contact')?['JobTitle'], '')), '{{ contact.JOB_TITLE }}', coalesce(outputs('Sample_contact')?['JobTitle'], '')), '{{contact.JOB_TITLE}}', coalesce(outputs('Sample_contact')?['JobTitle'], '')), '{{Email}}', coalesce(outputs('Sample_contact')?['Email'], '')), '{{ contact.EMAIL }}', coalesce(outputs('Sample_contact')?['Email'], '')), '{{contact.EMAIL}}', coalesce(outputs('Sample_contact')?['Email'], ''))",
+              "emailMessage/Importance": "Normal"
+            },
+            "authentication": "@parameters('$authentication')"
+          },
+          "runAfter": {
+            "Sample_contact": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Mark_testing": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "connectionName": "shared_sharepointonline",
+              "operationId": "PatchItem",
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+            },
+            "parameters": {
+              "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+              "table": "Campaigns",
+              "id": "@triggerBody()?['number']",
+              "item/Title": "@body('Get_campaign')?['Title']",
+              "item/Status/Value": "@if(equals(body('Get_campaign')?['Status']?['Value'], 'Draft'), 'Testing', body('Get_campaign')?['Status']?['Value'])",
+              "item/LastRunMessage": "@{utcNow()} | test email sent to @{coalesce(body('Get_campaign')?['TestEmail'], triggerOutputs()?['headers']?['x-ms-user-email'])}"
+            },
+            "authentication": "@parameters('$authentication')"
+          },
+          "runAfter": {
+            "Send_test_email": [
+              "Succeeded"
+            ]
+          }
+        }
+      },
+      "runAfter": {
+        "Check_template_active": [
+          "Succeeded"
+        ]
+      },
+      "else": {
+        "actions": {
+          "Check_status": {
+            "type": "If",
+            "expression": {
+              "and": [
+                {
+                  "equals": [
+                    "@contains(createArray('Draft', 'Testing', 'Paused'), body('Get_campaign')?['Status']?['Value'])",
+                    false
+                  ]
+                }
+              ]
+            },
+            "actions": {
+              "Stop_wrong_status": {
+                "type": "Terminate",
+                "inputs": {
+                  "runStatus": "Failed",
+                  "runError": {
+                    "code": "WrongStatus",
+                    "message": "Campaign Status must be Draft, Testing or Paused to send. If a previous run is stuck in Sending, set Status to Paused and run again."
+                  }
+                },
+                "runAfter": {}
+              }
+            },
+            "runAfter": {},
+            "else": {
+              "actions": {}
+            }
+          },
+          "Send_scope": {
+            "type": "Scope",
+            "actions": {
+              "Mark_sending": {
+                "type": "OpenApiConnection",
+                "inputs": {
+                  "host": {
+                    "connectionName": "shared_sharepointonline",
+                    "operationId": "PatchItem",
+                    "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+                  },
+                  "parameters": {
+                    "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+                    "table": "Campaigns",
+                    "id": "@triggerBody()?['number']",
+                    "item/Title": "@body('Get_campaign')?['Title']",
+                    "item/Status/Value": "Sending",
+                    "item/StartedAt": "@utcNow()",
+                    "item/SentBy": "@triggerOutputs()?['headers']?['x-ms-user-email']"
+                  },
+                  "authentication": "@parameters('$authentication')"
+                },
+                "runAfter": {}
+              },
+              "Get_contacts": {
+                "type": "OpenApiConnection",
+                "inputs": {
+                  "host": {
+                    "connectionName": "shared_sharepointonline",
+                    "operationId": "GetItems",
+                    "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+                  },
+                  "parameters": {
+                    "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+                    "table": "Contacts",
+                    "$filter": "ContactListId eq @{body('Get_campaign')?['ContactList']?['Id']}",
+                    "$top": 5000
+                  },
+                  "authentication": "@parameters('$authentication')"
+                },
+                "runAfter": {
+                  "Mark_sending": [
+                    "Succeeded"
+                  ]
+                },
+                "runtimeConfiguration": {
+                  "paginationPolicy": {
+                    "minimumItemCount": 5000
+                  }
+                }
+              },
+              "Get_suppression": {
+                "type": "OpenApiConnection",
+                "inputs": {
+                  "host": {
+                    "connectionName": "shared_sharepointonline",
+                    "operationId": "GetItems",
+                    "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+                  },
+                  "parameters": {
+                    "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+                    "table": "Suppression",
+                    "$top": 5000
+                  },
+                  "authentication": "@parameters('$authentication')"
+                },
+                "runAfter": {
+                  "Get_contacts": [
+                    "Succeeded"
+                  ]
+                },
+                "runtimeConfiguration": {
+                  "paginationPolicy": {
+                    "minimumItemCount": 5000
+                  }
+                }
+              },
+              "Get_already_logged": {
+                "type": "OpenApiConnection",
+                "inputs": {
+                  "host": {
+                    "connectionName": "shared_sharepointonline",
+                    "operationId": "GetItems",
+                    "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+                  },
+                  "parameters": {
+                    "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+                    "table": "CampaignSends",
+                    "$filter": "CampaignNo eq @{triggerBody()?['number']}",
+                    "$top": 5000
+                  },
+                  "authentication": "@parameters('$authentication')"
+                },
+                "runAfter": {
+                  "Get_suppression": [
+                    "Succeeded"
+                  ]
+                },
+                "runtimeConfiguration": {
+                  "paginationPolicy": {
+                    "minimumItemCount": 5000
+                  }
+                }
+              },
+              "If_follow_up": {
+                "type": "If",
+                "expression": {
+                  "and": [
+                    {
+                      "equals": [
+                        "@variables('IsFollowUp')",
+                        true
+                      ]
+                    }
+                  ]
+                },
+                "actions": {
+                  "Get_parent_sends": {
+                    "type": "OpenApiConnection",
+                    "inputs": {
+                      "host": {
+                        "connectionName": "shared_sharepointonline",
+                        "operationId": "GetItems",
+                        "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+                      },
+                      "parameters": {
+                        "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+                        "table": "CampaignSends",
+                        "$filter": "CampaignNo eq @{body('Get_campaign')?['ParentCampaignNo']}",
+                        "$top": 5000
+                      },
+                      "authentication": "@parameters('$authentication')"
+                    },
+                    "runAfter": {},
+                    "runtimeConfiguration": {
+                      "paginationPolicy": {
+                        "minimumItemCount": 5000
+                      }
+                    }
+                  },
+                  "Filter_non_repliers": {
+                    "type": "Query",
+                    "inputs": {
+                      "from": "@body('Get_parent_sends')?['value']",
+                      "where": "@and(equals(item()?['SendStatus']?['Value'], 'Sent'), not(equals(item()?['Replied'], true)), not(equals(item()?['Unsubscribed'], true)))"
+                    },
+                    "runAfter": {
+                      "Get_parent_sends": [
+                        "Succeeded"
+                      ]
+                    }
+                  },
+                  "Select_non_replier_emails": {
+                    "type": "Select",
+                    "inputs": {
+                      "from": "@body('Filter_non_repliers')",
+                      "select": "@toLower(trim(coalesce(item()?['Title'], '')))"
+                    },
+                    "runAfter": {
+                      "Filter_non_repliers": [
+                        "Succeeded"
+                      ]
+                    }
+                  },
+                  "Set_follow_up_emails": {
+                    "type": "SetVariable",
+                    "inputs": {
+                      "name": "FollowUpEmails",
+                      "value": "@body('Select_non_replier_emails')"
+                    },
+                    "runAfter": {
+                      "Select_non_replier_emails": [
+                        "Succeeded"
+                      ]
+                    }
+                  }
+                },
+                "runAfter": {
+                  "Get_already_logged": [
+                    "Succeeded"
+                  ]
+                },
+                "else": {
+                  "actions": {}
+                }
+              },
+              "Select_suppressed_emails": {
+                "type": "Select",
+                "inputs": {
+                  "from": "@body('Get_suppression')?['value']",
+                  "select": "@toLower(trim(coalesce(item()?['Title'], '')))"
+                },
+                "runAfter": {
+                  "If_follow_up": [
+                    "Succeeded"
+                  ]
+                }
+              },
+              "Select_logged_emails": {
+                "type": "Select",
+                "inputs": {
+                  "from": "@body('Get_already_logged')?['value']",
+                  "select": "@toLower(trim(coalesce(item()?['Title'], '')))"
+                },
+                "runAfter": {
+                  "Select_suppressed_emails": [
+                    "Succeeded"
+                  ]
+                }
+              },
+              "Select_contacts": {
+                "type": "Select",
+                "inputs": {
+                  "from": "@body('Get_contacts')?['value']",
+                  "select": {
+                    "Email": "@toLower(trim(coalesce(item()?['Email'], '')))",
+                    "Title": "@coalesce(item()?['Title'], '')",
+                    "FirstName": "@coalesce(item()?['FirstName'], '')",
+                    "LastName": "@coalesce(item()?['LastName'], '')",
+                    "Company": "@coalesce(item()?['Company'], '')",
+                    "JobTitle": "@coalesce(item()?['JobTitle'], '')"
+                  }
+                },
+                "runAfter": {
+                  "Select_logged_emails": [
+                    "Succeeded"
+                  ]
+                }
+              },
+              "Filter_suppressed_in_list": {
+                "type": "Query",
+                "inputs": {
+                  "from": "@body('Select_contacts')",
+                  "where": "@contains(body('Select_suppressed_emails'), item()?['Email'])"
+                },
+                "runAfter": {
+                  "Select_contacts": [
+                    "Succeeded"
+                  ]
+                }
+              },
+              "Filter_eligible": {
+                "type": "Query",
+                "inputs": {
+                  "from": "@union(body('Select_contacts'), body('Select_contacts'))",
+                  "where": "@and(contains(item()?['Email'], '@'), not(contains(body('Select_suppressed_emails'), item()?['Email'])), not(contains(body('Select_logged_emails'), item()?['Email'])), or(not(variables('IsFollowUp')), contains(variables('FollowUpEmails'), item()?['Email'])))"
+                },
+                "runAfter": {
+                  "Filter_suppressed_in_list": [
+                    "Succeeded"
+                  ]
+                }
+              },
+              "Batch_size": {
+                "type": "Compose",
+                "inputs": "@if(greater(coalesce(triggerBody()?['number_1'], 0), 0), int(triggerBody()?['number_1']), int(coalesce(body('Get_campaign')?['BatchSize'], 200)))",
+                "runAfter": {
+                  "Filter_eligible": [
+                    "Succeeded"
+                  ]
+                }
+              },
+              "Batch": {
+                "type": "Compose",
+                "inputs": "@take(body('Filter_eligible'), outputs('Batch_size'))",
+                "runAfter": {
+                  "Batch_size": [
+                    "Succeeded"
+                  ]
+                }
+              },
+              "If_anything_to_send": {
+                "type": "If",
+                "expression": {
+                  "and": [
+                    {
+                      "greater": [
+                        "@length(outputs('Batch'))",
+                        0
+                      ]
+                    }
+                  ]
+                },
+                "actions": {
+                  "Send_loop": {
+                    "type": "Until",
+                    "expression": "@or(greaterOrEquals(variables('i'), length(outputs('Batch'))), variables('Paused'))",
+                    "limit": {
+                      "count": 5000,
+                      "timeout": "PT23H"
+                    },
+                    "actions": {
+                      "Current_recipient": {
+                        "type": "Compose",
+                        "inputs": "@outputs('Batch')[variables('i')]",
+                        "runAfter": {}
+                      },
+                      "Send_email": {
+                        "type": "OpenApiConnection",
+                        "inputs": {
+                          "host": {
+                            "connectionName": "shared_office365",
+                            "operationId": "SendEmailV2",
+                            "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365"
+                          },
+                          "parameters": {
+                            "emailMessage/To": "@outputs('Current_recipient')?['Email']",
+                            "emailMessage/Subject": "@replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(coalesce(body('Get_template')?['Subject'], ''), '{{FirstName}}', coalesce(outputs('Current_recipient')?['FirstName'], '')), '{{ contact.FIRSTNAME }}', coalesce(outputs('Current_recipient')?['FirstName'], '')), '{{contact.FIRSTNAME}}', coalesce(outputs('Current_recipient')?['FirstName'], '')), '{{LastName}}', coalesce(outputs('Current_recipient')?['LastName'], '')), '{{ contact.LASTNAME }}', coalesce(outputs('Current_recipient')?['LastName'], '')), '{{contact.LASTNAME}}', coalesce(outputs('Current_recipient')?['LastName'], '')), '{{Company}}', coalesce(outputs('Current_recipient')?['Company'], '')), '{{ contact.COMPANY_NAME }}', coalesce(outputs('Current_recipient')?['Company'], '')), '{{contact.COMPANY_NAME}}', coalesce(outputs('Current_recipient')?['Company'], '')), '{{ contact.COMPANY }}', coalesce(outputs('Current_recipient')?['Company'], '')), '{{contact.COMPANY}}', coalesce(outputs('Current_recipient')?['Company'], '')), '{{JobTitle}}', coalesce(outputs('Current_recipient')?['JobTitle'], '')), '{{ contact.JOB_TITLE }}', coalesce(outputs('Current_recipient')?['JobTitle'], '')), '{{contact.JOB_TITLE}}', coalesce(outputs('Current_recipient')?['JobTitle'], '')), '{{Email}}', coalesce(outputs('Current_recipient')?['Email'], '')), '{{ contact.EMAIL }}', coalesce(outputs('Current_recipient')?['Email'], '')), '{{contact.EMAIL}}', coalesce(outputs('Current_recipient')?['Email'], ''))",
+                            "emailMessage/Body": "@replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(coalesce(outputs('Base_html'), ''), '{{FirstName}}', coalesce(outputs('Current_recipient')?['FirstName'], '')), '{{ contact.FIRSTNAME }}', coalesce(outputs('Current_recipient')?['FirstName'], '')), '{{contact.FIRSTNAME}}', coalesce(outputs('Current_recipient')?['FirstName'], '')), '{{LastName}}', coalesce(outputs('Current_recipient')?['LastName'], '')), '{{ contact.LASTNAME }}', coalesce(outputs('Current_recipient')?['LastName'], '')), '{{contact.LASTNAME}}', coalesce(outputs('Current_recipient')?['LastName'], '')), '{{Company}}', coalesce(outputs('Current_recipient')?['Company'], '')), '{{ contact.COMPANY_NAME }}', coalesce(outputs('Current_recipient')?['Company'], '')), '{{contact.COMPANY_NAME}}', coalesce(outputs('Current_recipient')?['Company'], '')), '{{ contact.COMPANY }}', coalesce(outputs('Current_recipient')?['Company'], '')), '{{contact.COMPANY}}', coalesce(outputs('Current_recipient')?['Company'], '')), '{{JobTitle}}', coalesce(outputs('Current_recipient')?['JobTitle'], '')), '{{ contact.JOB_TITLE }}', coalesce(outputs('Current_recipient')?['JobTitle'], '')), '{{contact.JOB_TITLE}}', coalesce(outputs('Current_recipient')?['JobTitle'], '')), '{{Email}}', coalesce(outputs('Current_recipient')?['Email'], '')), '{{ contact.EMAIL }}', coalesce(outputs('Current_recipient')?['Email'], '')), '{{contact.EMAIL}}', coalesce(outputs('Current_recipient')?['Email'], ''))",
+                            "emailMessage/Importance": "Normal"
+                          },
+                          "authentication": "@parameters('$authentication')"
+                        },
+                        "runAfter": {
+                          "Current_recipient": [
+                            "Succeeded"
+                          ]
+                        }
+                      },
+                      "Log_sent": {
+                        "type": "OpenApiConnection",
+                        "inputs": {
+                          "host": {
+                            "connectionName": "shared_sharepointonline",
+                            "operationId": "PostItem",
+                            "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+                          },
+                          "parameters": {
+                            "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+                            "table": "CampaignSends",
+                            "item/Title": "@outputs('Current_recipient')?['Email']",
+                            "item/CampaignNo": "@triggerBody()?['number']",
+                            "item/ContactName": "@outputs('Current_recipient')?['Title']",
+                            "item/Company": "@outputs('Current_recipient')?['Company']",
+                            "item/SendStatus/Value": "Sent",
+                            "item/SentAt": "@utcNow()",
+                            "item/SentBy": "@triggerOutputs()?['headers']?['x-ms-user-email']"
+                          },
+                          "authentication": "@parameters('$authentication')"
+                        },
+                        "runAfter": {
+                          "Send_email": [
+                            "Succeeded"
+                          ]
+                        }
+                      },
+                      "Increment_sent": {
+                        "type": "IncrementVariable",
+                        "inputs": {
+                          "name": "Sent",
+                          "value": 1
+                        },
+                        "runAfter": {
+                          "Log_sent": [
+                            "Succeeded"
+                          ]
+                        }
+                      },
+                      "Log_failed": {
+                        "type": "OpenApiConnection",
+                        "inputs": {
+                          "host": {
+                            "connectionName": "shared_sharepointonline",
+                            "operationId": "PostItem",
+                            "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+                          },
+                          "parameters": {
+                            "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+                            "table": "CampaignSends",
+                            "item/Title": "@outputs('Current_recipient')?['Email']",
+                            "item/CampaignNo": "@triggerBody()?['number']",
+                            "item/ContactName": "@outputs('Current_recipient')?['Title']",
+                            "item/Company": "@outputs('Current_recipient')?['Company']",
+                            "item/SendStatus/Value": "Failed",
+                            "item/SentAt": "@utcNow()",
+                            "item/SentBy": "@triggerOutputs()?['headers']?['x-ms-user-email']",
+                            "item/Error": "@{substring(concat(string(outputs('Send_email')?['body']), '                                                  '), 0, 500)}"
+                          },
+                          "authentication": "@parameters('$authentication')"
+                        },
+                        "runAfter": {
+                          "Send_email": [
+                            "Failed",
+                            "TimedOut"
+                          ]
+                        }
+                      },
+                      "Increment_failed": {
+                        "type": "IncrementVariable",
+                        "inputs": {
+                          "name": "Failed",
+                          "value": 1
+                        },
+                        "runAfter": {
+                          "Log_failed": [
+                            "Succeeded"
+                          ]
+                        }
+                      },
+                      "Wait_between_emails": {
+                        "type": "Wait",
+                        "inputs": {
+                          "interval": {
+                            "count": "@int(coalesce(body('Get_campaign')?['DelaySeconds'], 5))",
+                            "unit": "Second"
+                          }
+                        },
+                        "runAfter": {
+                          "Increment_sent": [
+                            "Succeeded",
+                            "Skipped",
+                            "Failed"
+                          ],
+                          "Increment_failed": [
+                            "Succeeded",
+                            "Skipped",
+                            "Failed"
+                          ]
+                        }
+                      },
+                      "Get_campaign_status": {
+                        "type": "OpenApiConnection",
+                        "inputs": {
+                          "host": {
+                            "connectionName": "shared_sharepointonline",
+                            "operationId": "GetItem",
+                            "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+                          },
+                          "parameters": {
+                            "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+                            "table": "Campaigns",
+                            "id": "@triggerBody()?['number']"
+                          },
+                          "authentication": "@parameters('$authentication')"
+                        },
+                        "runAfter": {
+                          "Wait_between_emails": [
+                            "Succeeded"
+                          ]
+                        }
+                      },
+                      "Set_paused": {
+                        "type": "SetVariable",
+                        "inputs": {
+                          "name": "Paused",
+                          "value": "@equals(body('Get_campaign_status')?['Status']?['Value'], 'Paused')"
+                        },
+                        "runAfter": {
+                          "Get_campaign_status": [
+                            "Succeeded",
+                            "Failed"
+                          ]
+                        }
+                      },
+                      "Increment_i": {
+                        "type": "IncrementVariable",
+                        "inputs": {
+                          "name": "i",
+                          "value": 1
+                        },
+                        "runAfter": {
+                          "Set_paused": [
+                            "Succeeded",
+                            "Failed",
+                            "Skipped"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "runAfter": {
+                  "Batch": [
+                    "Succeeded"
+                  ]
+                },
+                "else": {
+                  "actions": {}
+                }
+              },
+              "Remaining": {
+                "type": "Compose",
+                "inputs": "@sub(length(body('Filter_eligible')), add(variables('Sent'), variables('Failed')))",
+                "runAfter": {
+                  "If_anything_to_send": [
+                    "Succeeded",
+                    "Failed"
+                  ]
+                }
+              },
+              "Final_status": {
+                "type": "Compose",
+                "inputs": "@if(or(variables('Paused'), greater(outputs('Remaining'), 0)), 'Paused', 'Completed')",
+                "runAfter": {
+                  "Remaining": [
+                    "Succeeded"
+                  ]
+                }
+              },
+              "Update_campaign_result": {
+                "type": "OpenApiConnection",
+                "inputs": {
+                  "host": {
+                    "connectionName": "shared_sharepointonline",
+                    "operationId": "PatchItem",
+                    "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+                  },
+                  "parameters": {
+                    "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+                    "table": "Campaigns",
+                    "id": "@triggerBody()?['number']",
+                    "item/Title": "@body('Get_campaign')?['Title']",
+                    "item/Status/Value": "@outputs('Final_status')",
+                    "item/SentCount": "@add(int(coalesce(body('Get_campaign')?['SentCount'], 0)), variables('Sent'))",
+                    "item/FailedCount": "@add(int(coalesce(body('Get_campaign')?['FailedCount'], 0)), variables('Failed'))",
+                    "item/SkippedCount": "@length(body('Filter_suppressed_in_list'))",
+                    "item/CompletedAt": "@if(equals(outputs('Final_status'), 'Completed'), utcNow(), null)",
+                    "item/LastRunMessage": "@{utcNow()} | @{triggerOutputs()?['headers']?['x-ms-user-email']} | sent @{variables('Sent')}, failed @{variables('Failed')}, remaining @{outputs('Remaining')}, suppressed @{length(body('Filter_suppressed_in_list'))}@{if(variables('Paused'), ' | paused by user', '')}"
+                  },
+                  "authentication": "@parameters('$authentication')"
+                },
+                "runAfter": {
+                  "Final_status": [
+                    "Succeeded"
+                  ]
+                }
+              }
+            },
+            "runAfter": {
+              "Check_status": [
+                "Succeeded"
+              ]
+            }
+          },
+          "Mark_paused_on_error": {
+            "type": "OpenApiConnection",
+            "inputs": {
+              "host": {
+                "connectionName": "shared_sharepointonline",
+                "operationId": "PatchItem",
+                "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+              },
+              "parameters": {
+                "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+                "table": "Campaigns",
+                "id": "@triggerBody()?['number']",
+                "item/Title": "@body('Get_campaign')?['Title']",
+                "item/Status/Value": "Paused",
+                "item/SentCount": "@add(int(coalesce(body('Get_campaign')?['SentCount'], 0)), variables('Sent'))",
+                "item/FailedCount": "@add(int(coalesce(body('Get_campaign')?['FailedCount'], 0)), variables('Failed'))",
+                "item/LastRunMessage": "@{utcNow()} | run failed after @{variables('Sent')} sent - check the flow run history, then run again to resume"
+              },
+              "authentication": "@parameters('$authentication')"
+            },
+            "runAfter": {
+              "Send_scope": [
+                "Failed",
+                "TimedOut"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "outputs": {}
+}
