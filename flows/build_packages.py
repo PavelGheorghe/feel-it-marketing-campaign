@@ -26,6 +26,10 @@ FLOWS = {
         "displayName": "Marketing campaign - Sync replies",
         "description": "Marks campaign recipients who replied and adds unsubscribe replies to the Suppression list.",
     },
+    "marketing-campaign-unsubscribe": {
+        "displayName": "Marketing campaign - Unsubscribe form",
+        "description": "Adds addresses submitted through the Microsoft Forms unsubscribe link to the Suppression list.",
+    },
 }
 
 CONNECTORS = {
@@ -33,6 +37,8 @@ CONNECTORS = {
         "icon": "https://connectoricons-prod.azureedge.net/releases/v1.0.1676/1.0.1676.3617/sharepointonline/icon.png"},
     "shared_office365": {"displayName": "Office 365 Outlook", "source": "Invoker",
         "icon": "https://connectoricons-prod.azureedge.net/releases/v1.0.1676/1.0.1676.3617/office365/icon.png"},
+    "shared_microsoftforms": {"displayName": "Microsoft Forms", "source": "Embedded",
+        "icon": "https://connectoricons-prod.azureedge.net/releases/v1.0.1676/1.0.1676.3617/microsoftforms/icon.png"},
 }
 
 
@@ -41,7 +47,8 @@ def ns_id(*parts: str) -> str:
 
 
 def build(folder: str, meta: dict) -> Path:
-    definition = json.loads((HERE / folder / "definition.json").read_text())
+    text = (HERE / folder / "definition.json").read_text()
+    definition = json.loads(text)
     flow_id = ns_id(folder, "flow")
     flow_res = ns_id(folder, "flow-res")
 
@@ -60,6 +67,8 @@ def build(folder: str, meta: dict) -> Path:
     }
     apis_map, connections_map, connection_refs = {}, {}, {}
     for key, c in CONNECTORS.items():
+        if f'"connectionName": "{key}"' not in text:
+            continue
         api_res, conn_res = ns_id(folder, key, "api"), ns_id(folder, key, "conn")
         api_id = f"/providers/Microsoft.PowerApps/apis/{key}"
         resources[api_res] = {

@@ -1,0 +1,195 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "$connections": {
+      "defaultValue": {},
+      "type": "Object"
+    },
+    "$authentication": {
+      "defaultValue": {},
+      "type": "SecureObject"
+    }
+  },
+  "triggers": {
+    "When_a_new_response_is_submitted": {
+      "type": "OpenApiConnectionWebhook",
+      "inputs": {
+        "host": {
+          "connectionName": "shared_microsoftforms",
+          "operationId": "CreateFormWebhook",
+          "apiId": "/providers/Microsoft.PowerApps/apis/shared_microsoftforms"
+        },
+        "parameters": {
+          "form_id": "Up4TieX6UUSQiarlEaH7xu_RL39zTjpLv1cF5EKKzTpUQkk1NEZKOVhPVkRQMFZES09IWFNYSEUwNS4u"
+        },
+        "authentication": "@parameters('$authentication')"
+      },
+      "splitOn": "@triggerOutputs()?['body/value']"
+    }
+  },
+  "actions": {
+    "Get_response_details": {
+      "type": "OpenApiConnection",
+      "inputs": {
+        "host": {
+          "connectionName": "shared_microsoftforms",
+          "operationId": "GetFormResponseById",
+          "apiId": "/providers/Microsoft.PowerApps/apis/shared_microsoftforms"
+        },
+        "parameters": {
+          "form_id": "Up4TieX6UUSQiarlEaH7xu_RL39zTjpLv1cF5EKKzTpUQkk1NEZKOVhPVkRQMFZES09IWFNYSEUwNS4u",
+          "response_id": "@triggerOutputs()?['body/resourceData/responseId']"
+        },
+        "authentication": "@parameters('$authentication')"
+      },
+      "runAfter": {}
+    },
+    "Email": {
+      "type": "Compose",
+      "inputs": "@toLower(trim(coalesce(body('Get_response_details')?['rab12a07e4c5949bf94598f01daf8335d'], '')))",
+      "runAfter": {
+        "Get_response_details": [
+          "Succeeded"
+        ]
+      }
+    },
+    "If_valid_email": {
+      "type": "If",
+      "expression": {
+        "and": [
+          {
+            "contains": [
+              "@outputs('Email')",
+              "@"
+            ]
+          }
+        ]
+      },
+      "actions": {
+        "Get_existing_suppression": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "connectionName": "shared_sharepointonline",
+              "operationId": "GetItems",
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+            },
+            "parameters": {
+              "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+              "table": "Suppression",
+              "$filter": "Title eq '@{replace(outputs('Email'), '''', '''''')}'",
+              "$top": 1
+            },
+            "authentication": "@parameters('$authentication')"
+          },
+          "runAfter": {}
+        },
+        "If_not_suppressed": {
+          "type": "If",
+          "expression": {
+            "equals": [
+              "@length(body('Get_existing_suppression')?['value'])",
+              0
+            ]
+          },
+          "actions": {
+            "Add_to_suppression": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "host": {
+                  "connectionName": "shared_sharepointonline",
+                  "operationId": "PostItem",
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+                },
+                "parameters": {
+                  "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+                  "table": "Suppression",
+                  "item/Title": "@outputs('Email')",
+                  "item/Reason/Value": "Unsubscribed",
+                  "item/SuppressedAt": "@utcNow()"
+                },
+                "authentication": "@parameters('$authentication')"
+              },
+              "runAfter": {}
+            }
+          },
+          "else": {
+            "actions": {}
+          },
+          "runAfter": {
+            "Get_existing_suppression": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Get_campaign_sends": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "connectionName": "shared_sharepointonline",
+              "operationId": "GetItems",
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+            },
+            "parameters": {
+              "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+              "table": "CampaignSends",
+              "$filter": "Title eq '@{replace(outputs('Email'), '''', '''''')}'",
+              "$top": 5000
+            },
+            "authentication": "@parameters('$authentication')"
+          },
+          "runAfter": {
+            "If_not_suppressed": [
+              "Succeeded"
+            ]
+          },
+          "runtimeConfiguration": {
+            "paginationPolicy": {
+              "minimumItemCount": 5000
+            }
+          }
+        },
+        "For_each_send": {
+          "type": "Foreach",
+          "foreach": "@body('Get_campaign_sends')?['value']",
+          "actions": {
+            "Mark_unsubscribed": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "host": {
+                  "connectionName": "shared_sharepointonline",
+                  "operationId": "PatchItem",
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+                },
+                "parameters": {
+                  "dataset": "https://feelitservices.sharepoint.com/sites/Marketingcampaigns",
+                  "table": "CampaignSends",
+                  "id": "@items('For_each_send')?['ID']",
+                  "item/Title": "@items('For_each_send')?['Title']",
+                  "item/Unsubscribed": true
+                },
+                "authentication": "@parameters('$authentication')"
+              },
+              "runAfter": {}
+            }
+          },
+          "runAfter": {
+            "Get_campaign_sends": [
+              "Succeeded"
+            ]
+          }
+        }
+      },
+      "else": {
+        "actions": {}
+      },
+      "runAfter": {
+        "Email": [
+          "Succeeded"
+        ]
+      }
+    }
+  },
+  "outputs": {}
+}

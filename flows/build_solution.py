@@ -1,9 +1,9 @@
-"""Build an unmanaged Dataverse solution (.zip) containing both flows.
+"""Build an unmanaged Dataverse solution (.zip) containing all flows.
 
 Usage:  python3 flows/build_solution.py
-Output: flows/dist/FeelITMarketingCampaign_1_0_0_0.zip
+Output: flows/dist/FeelITMarketingCampaign_<version>.zip
 Import: Power Automate > Solutions > Import solution > Browse > select the zip > Next >
-        pick your SharePoint and Office 365 Outlook connections > Import.
+        pick your SharePoint, Office 365 Outlook and Microsoft Forms connections > Import.
 
 Office 365 Outlook uses runtimeSource "invoker". That means "provided by run-only user": mail
 is sent from the mailbox of the colleague who runs the flow.
@@ -16,18 +16,21 @@ from xml.sax.saxutils import escape
 
 HERE = Path(__file__).resolve().parent
 DIST = HERE / "dist"
-VERSION = "1.0.0.0"
+VERSION = "1.1.0.0"
 PREFIX = "feelit"
 
 FLOWS = [
     ("marketing-campaign", "Marketing campaign"),
     ("marketing-campaign-sync-replies", "Marketing campaign - Sync replies"),
+    ("marketing-campaign-unsubscribe", "Marketing campaign - Unsubscribe form"),
 ]
 CONNREFS = {
     "shared_sharepointonline": {"logical": f"{PREFIX}_sharedsharepointonline_mc", "display": "SharePoint (Marketing campaign)",
                                 "runtime": "embedded"},
     "shared_office365": {"logical": f"{PREFIX}_sharedoffice365_mc", "display": "Office 365 Outlook (Marketing campaign)",
                          "runtime": "invoker"},
+    "shared_microsoftforms": {"logical": f"{PREFIX}_sharedmicrosoftforms_mc", "display": "Microsoft Forms (Marketing campaign)",
+                              "runtime": "embedded"},
 }
 
 
@@ -36,10 +39,13 @@ def wf_id(folder: str) -> str:
 
 
 def workflow_json(folder: str) -> str:
-    definition = json.loads((HERE / folder / "definition.json").read_text())
+    text = (HERE / folder / "definition.json").read_text()
+    definition = json.loads(text)
+    # Only reference the connectors this flow actually uses.
     refs = {key: {"runtimeSource": c["runtime"],
                   "connection": {"connectionReferenceLogicalName": c["logical"]},
-                  "api": {"name": key}} for key, c in CONNREFS.items()}
+                  "api": {"name": key}} for key, c in CONNREFS.items()
+            if f'"connectionName": "{key}"' in text}
     return json.dumps({"properties": {"connectionReferences": refs, "definition": definition},
                        "schemaVersion": "1.0.0.0"}, indent=2, ensure_ascii=False)
 
